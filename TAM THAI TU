@@ -1,0 +1,174 @@
+--// SERVICES
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+
+--// SAVE SETTINGS
+local settingsFile = "TTTHub_Settings.json"
+local settings = {
+	speed = false,
+	jump = false
+}
+
+pcall(function()
+	if readfile and isfile(settingsFile) then
+		settings = HttpService:JSONDecode(readfile(settingsFile))
+	end
+end)
+
+local function saveSettings()
+	if writefile then
+		writefile(settingsFile, HttpService:JSONEncode(settings))
+	end
+end
+
+--// GUI
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "TamThaiTuHub"
+
+-- Toggle Button
+local toggle = Instance.new("TextButton", gui)
+toggle.Size = UDim2.new(0,120,0,40)
+toggle.Position = UDim2.new(0,10,0,10)
+toggle.Text = "TTT HUB"
+toggle.BackgroundColor3 = Color3.fromRGB(20,20,20)
+toggle.TextColor3 = Color3.fromRGB(255,255,255)
+
+-- Main
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,480,0,360)
+main.Position = UDim2.new(0.5,-240,0.5,-180)
+main.BackgroundColor3 = Color3.fromRGB(10,10,10)
+main.Visible = false
+main.Active = true
+main.Draggable = true
+
+-- Title
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,0,0,40)
+title.Text = "🖤 Tam Thái Tử Hub - VIP"
+title.BackgroundColor3 = Color3.fromRGB(15,15,15)
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+
+toggle.MouseButton1Click:Connect(function()
+	main.Visible = not main.Visible
+end)
+
+-- Tabs
+local tabs = Instance.new("Frame", main)
+tabs.Size = UDim2.new(1,0,0,40)
+tabs.Position = UDim2.new(0,0,0,40)
+tabs.BackgroundColor3 = Color3.fromRGB(20,20,20)
+
+local pages = Instance.new("Frame", main)
+pages.Size = UDim2.new(1,0,1,-80)
+pages.Position = UDim2.new(0,0,0,80)
+pages.BackgroundTransparency = 1
+
+local function createTab(name, pos)
+	local btn = Instance.new("TextButton", tabs)
+	btn.Size = UDim2.new(0,160,1,0)
+	btn.Position = UDim2.new(0,(pos-1)*160,0,0)
+	btn.Text = name
+	btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+	btn.TextColor3 = Color3.fromRGB(255,255,255)
+
+	local page = Instance.new("Frame", pages)
+	page.Size = UDim2.new(1,0,1,0)
+	page.Visible = false
+	page.BackgroundTransparency = 1
+
+	btn.MouseButton1Click:Connect(function()
+		for _,v in pairs(pages:GetChildren()) do
+			v.Visible = false
+		end
+		page.Visible = true
+	end)
+
+	return page
+end
+
+local tab1 = createTab("Server",1)
+local tab2 = createTab("Player",2)
+local tab3 = createTab("Info",3)
+
+tab1.Visible = true
+
+--// SERVER HOP NÂNG CAO
+local visited = {}
+
+local function hopServer()
+	local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+	local data = HttpService:JSONDecode(game:HttpGet(url))
+
+	for _,server in pairs(data.data) do
+		if server.playing < server.maxPlayers and not visited[server.id] then
+			visited[server.id] = true
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, player)
+			break
+		end
+	end
+end
+
+local hopBtn = Instance.new("TextButton", tab1)
+hopBtn.Size = UDim2.new(0,240,0,50)
+hopBtn.Position = UDim2.new(0,20,0,20)
+hopBtn.Text = "🔄 Hop Server Ít Người"
+hopBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+hopBtn.TextColor3 = Color3.new(1,1,1)
+
+hopBtn.MouseButton1Click:Connect(hopServer)
+
+--// PLAYER TAB
+local speedBtn = Instance.new("TextButton", tab2)
+speedBtn.Size = UDim2.new(0,240,0,50)
+speedBtn.Position = UDim2.new(0,20,0,20)
+speedBtn.Text = "⚡ Speed Boost"
+
+local jumpBtn = Instance.new("TextButton", tab2)
+jumpBtn.Size = UDim2.new(0,240,0,50)
+jumpBtn.Position = UDim2.new(0,20,0,90)
+jumpBtn.Text = "🦘 Jump Boost"
+
+local function applyStats()
+	local hum = player.Character and player.Character:FindFirstChild("Humanoid")
+	if hum then
+		hum.WalkSpeed = settings.speed and 24 or 16
+		hum.JumpPower = settings.jump and 80 or 50
+	end
+end
+
+speedBtn.MouseButton1Click:Connect(function()
+	settings.speed = not settings.speed
+	saveSettings()
+	applyStats()
+end)
+
+jumpBtn.MouseButton1Click:Connect(function()
+	settings.jump = not settings.jump
+	saveSettings()
+	applyStats()
+end)
+
+--// FPS
+local fpsLabel = Instance.new("TextLabel", tab3)
+fpsLabel.Size = UDim2.new(0,240,0,50)
+fpsLabel.Position = UDim2.new(0,20,0,20)
+fpsLabel.TextColor3 = Color3.new(1,1,1)
+fpsLabel.BackgroundTransparency = 1
+
+RunService.RenderStepped:Connect(function(dt)
+	local fps = math.floor(1/dt)
+	fpsLabel.Text = "FPS: "..fps
+end)
+
+-- Apply saved settings
+player.CharacterAdded:Connect(function()
+	wait(1)
+	applyStats()
+end)
