@@ -1,0 +1,290 @@
+--// SERVICES
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local UIS = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+--// SETTINGS
+local fileName = "TTTHub.json"
+local settings = {
+	speedValue = 16,
+	jumpValue = 50
+}
+
+pcall(function()
+	if readfile and isfile(fileName) then
+		settings = HttpService:JSONDecode(readfile(fileName))
+	end
+end)
+
+local function save()
+	if writefile then
+		writefile(fileName,HttpService:JSONEncode(settings))
+	end
+end
+
+--// GUI
+local gui = Instance.new("ScreenGui",player.PlayerGui)
+
+local toggle = Instance.new("TextButton",gui)
+toggle.Size = UDim2.new(0,120,0,40)
+toggle.Position = UDim2.new(0,10,0,10)
+toggle.Text = "TTT HUB"
+toggle.BackgroundColor3 = Color3.fromRGB(20,20,20)
+toggle.TextColor3 = Color3.new(1,1,1)
+
+local main = Instance.new("Frame",gui)
+main.Size = UDim2.new(0,500,0,380)
+main.Position = UDim2.new(0.5,-250,0.5,-190)
+main.BackgroundColor3 = Color3.fromRGB(10,10,10)
+main.Visible = false
+main.Active = true
+main.Draggable = true
+
+toggle.MouseButton1Click:Connect(function()
+	main.Visible = not main.Visible
+end)
+
+-- TITLE
+local title = Instance.new("TextLabel",main)
+title.Size = UDim2.new(1,0,0,40)
+title.Text = "🖤 Tam Thái Tử Hub"
+
+--// FPS SMOOTH
+local fpsLabel = Instance.new("TextLabel",gui)
+fpsLabel.Size = UDim2.new(0,130,0,30)
+fpsLabel.Position = UDim2.new(1,-140,0,10)
+fpsLabel.BackgroundTransparency = 1
+fpsLabel.TextColor3 = Color3.new(1,1,1)
+
+local frameTimes = {}
+local maxSamples = 30
+
+RunService.RenderStepped:Connect(function(dt)
+	table.insert(frameTimes, dt)
+	if #frameTimes > maxSamples then
+		table.remove(frameTimes, 1)
+	end
+	
+	local total = 0
+	for _,v in pairs(frameTimes) do
+		total += v
+	end
+	
+	local avg = total / #frameTimes
+	local fps = math.floor(1 / avg)
+	
+	fpsLabel.Text = "FPS: "..fps
+end)
+
+-- TABS
+local tabs = Instance.new("Frame",main)
+tabs.Size = UDim2.new(1,0,0,40)
+tabs.Position = UDim2.new(0,0,0,40)
+
+local pages = Instance.new("Frame",main)
+pages.Size = UDim2.new(1,0,1,-80)
+pages.Position = UDim2.new(0,0,0,80)
+
+local function tab(name,pos)
+	local b = Instance.new("TextButton",tabs)
+	b.Size = UDim2.new(0,160,1,0)
+	b.Position = UDim2.new(0,(pos-1)*160,0,0)
+	b.Text = name
+	
+	local p = Instance.new("Frame",pages)
+	p.Size = UDim2.new(1,0,1,0)
+	p.Visible = false
+	
+	b.MouseButton1Click:Connect(function()
+		for _,v in pairs(pages:GetChildren()) do v.Visible=false end
+		p.Visible=true
+	end)
+	
+	return p
+end
+
+local tab1 = tab("Server",1)
+local tab2 = tab("Player",2)
+tab1.Visible = true
+
+--// HOP SERVER PRO
+local visited = {}
+local cursor = ""
+
+local function hop()
+	local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100"
+	if cursor ~= "" then url = url.."&cursor="..cursor end
+	
+	local data = HttpService:JSONDecode(game:HttpGet(url))
+	
+	cursor = data.nextPageCursor or ""
+	
+	for _,s in pairs(data.data) do
+		if s.playing < s.maxPlayers and not visited[s.id] then
+			visited[s.id] = true
+			TeleportService:TeleportToPlaceInstance(game.PlaceId,s.id,player)
+			break
+		end
+	end
+end
+
+local hopBtn = Instance.new("TextButton",tab1)
+hopBtn.Size = UDim2.new(0,240,0,50)
+hopBtn.Position = UDim2.new(0,20,0,20)
+hopBtn.Text = "🔄 Hop Server"
+hopBtn.MouseButton1Click:Connect(hop)
+
+--// PLAYER
+local speedToggle = true
+local jumpToggle = true
+local flying = false
+local bv,bg
+
+local function apply()
+	local h = player.Character and player.Character:FindFirstChild("Humanoid")
+	if h then
+		h.WalkSpeed = speedToggle and settings.speedValue or 16
+		h.JumpPower = jumpToggle and settings.jumpValue or 50
+	end
+end
+
+-- SPEED TOGGLE
+local speedBtn = Instance.new("TextButton",tab2)
+speedBtn.Size = UDim2.new(0,240,0,40)
+speedBtn.Position = UDim2.new(0,20,0,20)
+
+local function updateSpeedUI()
+	speedBtn.Text = "Speed: "..(speedToggle and "ON" or "OFF")
+	speedBtn.BackgroundColor3 = speedToggle and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+end
+
+updateSpeedUI()
+
+speedBtn.MouseButton1Click:Connect(function()
+	speedToggle = not speedToggle
+	updateSpeedUI()
+	apply()
+end)
+
+-- JUMP TOGGLE
+local jumpBtn = Instance.new("TextButton",tab2)
+jumpBtn.Size = UDim2.new(0,240,0,40)
+jumpBtn.Position = UDim2.new(0,20,0,70)
+
+local function updateJumpUI()
+	jumpBtn.Text = "Jump: "..(jumpToggle and "ON" or "OFF")
+	jumpBtn.BackgroundColor3 = jumpToggle and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+end
+
+updateJumpUI()
+
+jumpBtn.MouseButton1Click:Connect(function()
+	jumpToggle = not jumpToggle
+	updateJumpUI()
+	apply()
+end)
+
+-- SLIDER FUNCTION
+local function createSlider(parent, name, yPos, min, max, key)
+	local frame = Instance.new("Frame", parent)
+	frame.Size = UDim2.new(0,240,0,50)
+	frame.Position = UDim2.new(0,20,0,yPos)
+
+	local bar = Instance.new("Frame", frame)
+	bar.Size = UDim2.new(1,-20,0,6)
+	bar.Position = UDim2.new(0,10,0.5,-3)
+
+	local fill = Instance.new("Frame", bar)
+	fill.BackgroundColor3 = Color3.new(1,1,1)
+
+	local knob = Instance.new("Frame", bar)
+	knob.Size = UDim2.new(0,12,0,12)
+
+	local label = Instance.new("TextLabel", frame)
+	label.Size = UDim2.new(1,0,0,20)
+	label.Position = UDim2.new(0,0,0,-20)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1,1,1)
+
+	local dragging = false
+
+	local function update(x)
+		local rel = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X,0,1)
+		fill.Size = UDim2.new(rel,0,1,0)
+		knob.Position = UDim2.new(rel,-6,0.5,-6)
+		
+		settings[key] = math.floor(min + (max-min)*rel)
+		label.Text = name..": "..settings[key]
+		
+		save()
+		apply()
+	end
+
+	knob.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=true end
+	end)
+
+	UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging=false end
+	end)
+
+	UIS.InputChanged:Connect(function(i)
+		if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+			update(i.Position.X)
+		end
+	end)
+
+	label.Text = name..": "..settings[key]
+end
+
+createSlider(tab2,"Speed Value",120,8,150,"speedValue")
+createSlider(tab2,"Jump Value",200,30,200,"jumpValue")
+
+-- FLY
+local flyBtn = Instance.new("TextButton",tab2)
+flyBtn.Size = UDim2.new(0,240,0,50)
+flyBtn.Position = UDim2.new(0,20,0,270)
+
+local function updateFlyUI()
+	flyBtn.Text = "Fly: "..(flying and "ON" or "OFF")
+	flyBtn.BackgroundColor3 = flying and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+end
+
+updateFlyUI()
+
+flyBtn.MouseButton1Click:Connect(function()
+	flying = not flying
+	updateFlyUI()
+
+	local char = player.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+
+	if flying then
+		bv = Instance.new("BodyVelocity",hrp)
+		bv.MaxForce = Vector3.new(1e5,1e5,1e5)
+
+		bg = Instance.new("BodyGyro",hrp)
+		bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
+
+		RunService.RenderStepped:Connect(function()
+			if flying and hrp then
+				bv.Velocity = workspace.CurrentCamera.CFrame.LookVector * settings.speedValue
+				bg.CFrame = workspace.CurrentCamera.CFrame
+			end
+		end)
+	else
+		if bv then bv:Destroy() end
+		if bg then bg:Destroy() end
+	end
+end)
+
+-- APPLY
+player.CharacterAdded:Connect(function()
+	wait(1)
+	apply()
+end)
