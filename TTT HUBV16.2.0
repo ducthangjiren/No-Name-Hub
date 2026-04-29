@@ -1,0 +1,215 @@
+--[[ 
+    TTT HUB V16.2.0 - ANTI-CRASH & ENEMY-ONLY ESP
+    - Tối ưu hóa hiệu năng, giảm văng (Crash)
+    - ESP: Chỉ hiện kẻ địch (Team Check)
+    - PvP: Silent, Bot, Radius
+    - TP: Target, Lock, Loop
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local cam = workspace.CurrentCamera
+
+--// 1. OVERLAY & GUI
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.Name = "TTTHubV16_2_0"
+gui.ResetOnSpawn = false
+
+local fpsLabel = Instance.new("TextLabel", gui)
+fpsLabel.Size = UDim2.new(0, 80, 0, 25); fpsLabel.Position = UDim2.new(0, 10, 0, 15)
+fpsLabel.BackgroundTransparency = 0.5; fpsLabel.BackgroundColor3 = Color3.new(0,0,0)
+fpsLabel.TextColor3 = Color3.new(0, 1, 0.5); fpsLabel.TextSize = 12; fpsLabel.Font = "GothamBold"
+Instance.new("UICorner", fpsLabel)
+
+local fovRadius = 100
+local fovCircle = Instance.new("Frame", gui)
+fovCircle.BackgroundTransparency = 1; fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2); fovCircle.AnchorPoint = Vector2.new(0.5, 0.5); fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0); fovCircle.Visible = false
+local fovStroke = Instance.new("UIStroke", fovCircle); fovStroke.Thickness = 1.5
+Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 320, 0, 520); main.Position = UDim2.new(0.5, -160, 0.5, -260)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 20); main.Visible = false; main.Active = true; main.Draggable = true
+Instance.new("UICorner", main)
+
+local infoBar = Instance.new("TextLabel", main)
+infoBar.Size = UDim2.new(1, 0, 0, 20); infoBar.Position = UDim2.new(0, 0, 1, 0); infoBar.BackgroundColor3 = Color3.fromRGB(10, 10, 10); infoBar.TextColor3 = Color3.new(1, 1, 1); infoBar.TextSize = 11
+
+--// 2. TABS SYSTEM
+local tabBar = Instance.new("ScrollingFrame", main); tabBar.Size = UDim2.new(1, 0, 0, 40); tabBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30); tabBar.CanvasSize = UDim2.new(1.3, 0, 0, 0); tabBar.ScrollBarThickness = 0
+local function createTabBtn(name, pos)
+    local btn = Instance.new("TextButton", tabBar); btn.Size = UDim2.new(0.2, 0, 1, 0); btn.Position = UDim2.new(pos, 0, 0, 0)
+    btn.Text = name; btn.BackgroundTransparency = 1; btn.TextColor3 = Color3.new(1,1,1); btn.Font = "GothamBold"; btn.TextSize = 10
+    return btn
+end
+local t1 = createTabBtn("MOVE", 0); local t2 = createTabBtn("PvP", 0.2); local t3 = createTabBtn("TP", 0.4); local t4 = createTabBtn("IAM", 0.6); local t5 = createTabBtn("COLOR", 0.8)
+
+local function createCont()
+    local c = Instance.new("ScrollingFrame", main); c.Size = UDim2.new(1, -20, 1, -110); c.Position = UDim2.new(0, 10, 0, 50)
+    c.BackgroundTransparency = 1; c.Visible = false; c.ScrollBarThickness = 2; c.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Instance.new("UIListLayout", c).Padding = UDim.new(0, 8)
+    return c
+end
+local cMove, cPvP, cTP, cIAM, cSettings = createCont(), createCont(), createCont(), createCont(), createCont()
+cMove.Visible = true
+
+local tabs = {t1, t2, t3, t4, t5}
+local conts = {cMove, cPvP, cTP, cIAM, cSettings}
+for i, v in pairs(tabs) do v.MouseButton1Click:Connect(function() for _, c in pairs(conts) do c.Visible = false end conts[i].Visible = true end) end
+
+--// UI HELPERS
+local function createToggle(parent, text, callback)
+    local btn = Instance.new("TextButton", parent); btn.Size = UDim2.new(1, 0, 0, 35); btn.Text = text .. ": OFF"
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45); btn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", btn)
+    local on = false
+    btn.MouseButton1Click:Connect(function() on = not on; btn.Text = text .. (on and ": ON" or ": OFF"); btn.BackgroundColor3 = on and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(45, 45, 45); callback(on) end)
+    return btn
+end
+local function createSubBtn(parent, text, callback)
+    local b = Instance.new("TextButton", parent); b.Size = UDim2.new(1, 0, 0, 30); b.Text = text; b.BackgroundColor3 = Color3.fromRGB(65, 65, 65); b.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", b); b.MouseButton1Click:Connect(callback)
+    return b
+end
+
+--// [TAB MOVE]
+local flyOn, flySpeed = false, 50
+local flyStatus = Instance.new("TextLabel", cMove); flyStatus.Size = UDim2.new(1, 0, 0, 20); flyStatus.BackgroundTransparency = 1; flyStatus.TextColor3 = Color3.new(0,1,0.5); flyStatus.Text = "Fly Speed: " .. flySpeed
+createToggle(cMove, "Super Fly", function(v)
+    flyOn = v
+    if flyOn then
+        task.spawn(function()
+            local hrp = player.Character:WaitForChild("HumanoidRootPart")
+            while flyOn do
+                hrp.Velocity = cam.CFrame.LookVector * flySpeed
+                hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+                task.wait()
+            end
+            hrp.Velocity = Vector3.new(0,0,0)
+        end)
+    end
+end)
+createSubBtn(cMove, "Speed +10", function() flySpeed = flySpeed + 10; flyStatus.Text = "Fly Speed: " .. flySpeed end)
+createSubBtn(cMove, "Speed -10", function() flySpeed = math.max(10, flySpeed - 10); flyStatus.Text = "Fly Speed: " .. flySpeed end)
+
+--// [TAB PvP: CHỈ HIỆN KẺ ĐỊCH TRONG ESP]
+local silentOn, iamBotOn, espOn = false, false, false
+createToggle(cPvP, "IAM Silent Aim", function(v) silentOn = v end)
+createToggle(cPvP, "IAM Bot (Lock Head)", function(v) iamBotOn = v end)
+createToggle(cPvP, "ESP Enemies (No Team)", function(v) 
+    espOn = v
+    if not v then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p.Character then
+                if p.Character:FindFirstChild("T_HL") then p.Character.T_HL:Destroy() end
+                if p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("T_Tag") then p.Character.Head.T_Tag:Destroy() end
+            end
+        end
+    end
+end)
+createToggle(cPvP, "Hiện Rainbow FOV", function(v) fovCircle.Visible = v end)
+local fovInfo = Instance.new("TextLabel", cPvP); fovInfo.Size = UDim2.new(1, 0, 0, 20); fovInfo.BackgroundTransparency = 1; fovInfo.TextColor3 = Color3.new(1,0.8,0); fovInfo.Text = "Radius: " .. fovRadius
+createSubBtn(cPvP, "Radius +20", function() fovRadius = fovRadius + 20; fovInfo.Text = "Radius: " .. fovRadius end)
+createSubBtn(cPvP, "Radius -20", function() fovRadius = math.max(10, fovRadius - 20); fovInfo.Text = "Radius: " .. fovRadius end)
+
+--// [TAB TP]
+local selectedPlayer = nil
+local loopTp, iamLock = false, false
+createToggle(cTP, "IAM Lock (Dính chặt)", function(v) iamLock = v end)
+createSubBtn(cTP, "DỊCH CHUYỂN ĐẾN", function() if selectedPlayer and selectedPlayer.Character then player.Character.HumanoidRootPart.CFrame = selectedPlayer.Character.HumanoidRootPart.CFrame end end)
+createToggle(cTP, "Loop TP", function(v) loopTp = v end)
+
+--// [TAB IAM]
+local iamLabel = Instance.new("TextLabel", cIAM); iamLabel.Size = UDim2.new(1, 0, 0, 25); iamLabel.BackgroundTransparency = 1; iamLabel.TextColor3 = Color3.new(1, 1, 0); iamLabel.Text = "TARGET: NONE"
+local pScroll = Instance.new("ScrollingFrame", cIAM); pScroll.Size = UDim2.new(1, 0, 0, 200); pScroll.BackgroundTransparency = 0.9; pScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Instance.new("UIListLayout", pScroll).Padding = UDim.new(0, 3)
+local function updatePlayerList()
+    for _, child in pairs(pScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            local pBtn = Instance.new("TextButton", pScroll); pBtn.Size = UDim2.new(1, -5, 0, 28); pBtn.Text = p.Name; pBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50); pBtn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", pBtn)
+            pBtn.MouseButton1Click:Connect(function() selectedPlayer = p; iamLabel.Text = "TARGET: " .. p.Name end)
+        end
+    end
+end
+createSubBtn(cIAM, "Làm mới danh sách", updatePlayerList)
+
+--// [TAB COLOR]
+createSubBtn(cSettings, "Jiren Gray Theme", function() main.BackgroundColor3 = Color3.fromRGB(35, 35, 35) end)
+
+--// LOGIC HỆ THỐNG - TỐI ƯU HÓA ĐỂ CHỐNG VĂNG
+task.spawn(function()
+    while task.wait(0.5) do
+        fpsLabel.Text = "FPS: " .. math.floor(1/RunService.RenderStepped:Wait())
+        infoBar.Text = " ENEMIES: " .. (#Players:GetPlayers() - 1)
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    -- IAM Bot
+    if iamBotOn then
+        local target, dist = nil, fovRadius
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and p.Team ~= player.Team and p.Character and p.Character:FindFirstChild("Head") then
+                local pos, os = cam:WorldToViewportPoint(p.Character.Head.Position)
+                if os then
+                    local d = (Vector2.new(pos.X, pos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
+                    if d < dist then dist = d; target = p.Character.Head end
+                end
+            end
+        end
+        if target then cam.CFrame = CFrame.new(cam.CFrame.Position, target.Position) end
+    end
+    -- ESP TEAM CHECK (CHỈ HIỆN ĐỊCH)
+    if espOn then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and p.Character and p.Character:FindFirstChild("Head") then
+                if p.Team ~= player.Team then -- LỌC ĐỒNG ĐỘI
+                    local hl = p.Character:FindFirstChild("T_HL") or Instance.new("Highlight", p.Character)
+                    hl.Name = "T_HL"; hl.Enabled = true; hl.FillColor = Color3.new(1, 0, 0)
+                    local tag = p.Character.Head:FindFirstChild("T_Tag") or Instance.new("BillboardGui", p.Character.Head)
+                    tag.Name = "T_Tag"; tag.AlwaysOnTop = true; tag.Size = UDim2.new(0,100,0,50)
+                    local l = tag:FindFirstChild("L") or Instance.new("TextLabel", tag)
+                    l.Name = "L"; l.Size = UDim2.new(1,0,1,0); l.BackgroundTransparency = 1; l.TextColor3 = Color3.new(1,1,1); l.TextSize = 10
+                    local dist = math.floor((player.Character.HumanoidRootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude)
+                    l.Text = p.Name .. " [" .. dist .. "m]"
+                else
+                    -- Xóa ESP nếu là đồng đội
+                    if p.Character:FindFirstChild("T_HL") then p.Character.T_HL:Destroy() end
+                    if p.Character.Head:FindFirstChild("T_Tag") then p.Character.Head.T_Tag:Destroy() end
+                end
+            end
+        end
+    end
+end)
+
+-- TP Logic chạy riêng để không lag
+task.spawn(function()
+    while task.wait(0.01) do
+        if (loopTp or iamLock) and selectedPlayer and selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.CFrame = selectedPlayer.Character.HumanoidRootPart.CFrame
+        end
+    end
+end)
+
+-- SILENT AIM TEAM CHECK
+local oldIndex = nil
+oldIndex = hookmetamethod(game, "__index", function(self, index)
+    if silentOn and index == "Hit" and self:IsA("Mouse") then
+        local target, dist = nil, fovRadius
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and p.Team ~= player.Team and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local pos, os = cam:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+                if os then
+                    local d = (Vector2.new(pos.X, pos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
+                    if d < dist then dist = d; target = p.Character.HumanoidRootPart end
+                end
+            end
+        end
+        if target then return target.CFrame end
+    end
+    return oldIndex(self, index)
+end)
+
+local mBtn = Instance.new("TextButton", gui); mBtn.Size = UDim2.new(0, 45, 0, 45); mBtn.Position = UDim2.new(0, 10, 0.4, 0); mBtn.Text = "T"; mBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255); Instance.new("UICorner", mBtn).CornerRadius = UDim.new(1, 0)
+mBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible end)
+updatePlayerList()
