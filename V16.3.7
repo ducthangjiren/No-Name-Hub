@@ -1,0 +1,140 @@
+--[[ 
+    TTT HUB V16.3.7 - ABYSS2 ENCRYPTED
+    - Security: Level 2 Obfuscation
+    - Features: Fully Restored & Unlocked
+]]
+
+local _0x747474 = "TTTHub_Abyss2"
+local L_1 = game:GetService("Players")
+local L_2 = game:GetService("RunService")
+local L_3 = L_1.LocalPlayer
+local L_4 = workspace.CurrentCamera
+
+-- Abyss2 Decoder Core
+local function _AbyssDec(_str)
+    local _d = ""
+    for i = 1, #_str do
+        _d = _d .. string.char(string.byte(_str, i) - 1)
+    end
+    return _d
+end
+
+-- Encrypted Strings
+local S_1 = _AbyssDec("UuuIvc`Vmujnbuf") -- TTT_Ultimate
+local S_2 = _AbyssDec("VUU`FTQ") -- TTT_ESP
+
+if L_3.PlayerGui:FindFirstChild(_0x747474) then L_3.PlayerGui[_0x747474]:Destroy() end
+local G_1 = Instance.new("ScreenGui", L_3.PlayerGui); G_1.Name = _0x747474; G_1.DisplayOrder = 999
+
+local M_1 = Instance.new("Frame", G_1)
+M_1.Size = UDim2.new(0, 320, 0, 500); M_1.Position = UDim2.new(0.5, -160, 0.5, -250)
+M_1.BackgroundColor3 = Color3.fromRGB(30, 30, 30); M_1.Active = true; M_1.Draggable = true
+Instance.new("UICorner", M_1)
+
+-- Tab Logic Nén
+local T_B = Instance.new("Frame", M_1); T_B.Size = UDim2.new(1, 0, 0, 40); T_B.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Instance.new("UICorner", T_B)
+local C_N = Instance.new("Frame", M_1); C_N.Size = UDim2.new(1, -20, 1, -60); C_N.Position = UDim2.new(0, 10, 0, 50); C_N.BackgroundTransparency = 1
+
+local function _CT(n, p)
+    local b = Instance.new("TextButton", T_B); b.Size = UDim2.new(0.25, 0, 1, 0); b.Position = UDim2.new(p, 0, 0, 0)
+    b.Text = n; b.TextColor3 = Color3.new(1, 1, 1); b.BackgroundTransparency = 1; b.Font = "GothamBold"; b.TextSize = 10
+    local c = Instance.new("ScrollingFrame", C_N); c.Size = UDim2.new(1, 0, 1, 0); c.Visible = false; c.BackgroundTransparency = 1; c.ScrollBarThickness = 2; c.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Instance.new("UIListLayout", c).Padding = UDim.new(0, 8)
+    b.MouseButton1Click:Connect(function() for _, v in pairs(C_N:GetChildren()) do if v:IsA("ScrollingFrame") then v.Visible = false end end c.Visible = true end)
+    return c
+end
+
+local c1, c2, c3, c4 = _CT("MOVE", 0), _CT("PvP", 0.25), _CT("TP", 0.5), _CT("IAM", 0.75)
+c2.Visible = true
+
+-- Control Flags
+local _f1, _f2, _f3, _f4 = false, false, false, false -- silent, bot, esp, fly
+local _s1, _r1 = 50, 100 -- speed, radius
+local _t1, _tp1, _lk1 = nil, false, false -- target, loop, lock
+
+local F_V = Instance.new("Frame", G_1); F_V.BackgroundTransparency = 1; F_V.AnchorPoint = Vector2.new(0.5, 0.5); F_V.Position = UDim2.new(0.5, 0, 0.5, 0)
+F_V.Size = UDim2.new(0, _r1*2, 0, _r1*2); F_V.Visible = false; local F_S = Instance.new("UIStroke", F_V); F_S.Color = Color3.new(1, 1, 1); Instance.new("UICorner", F_V).CornerRadius = UDim.new(1, 0)
+
+-- Functions
+local function _TOG(p, t, fn)
+    local b = Instance.new("TextButton", p); b.Size = UDim2.new(1, 0, 0, 35); b.BackgroundColor3 = Color3.fromRGB(45, 45, 45); b.Text = t .. ": OFF"; b.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", b)
+    local on = false; b.MouseButton1Click:Connect(function() on = not on; b.Text = t .. (on and ": ON" or ": OFF"); b.BackgroundColor3 = on and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(45, 45, 45); fn(on) end)
+end
+
+local function _BTN(p, t, fn)
+    local b = Instance.new("TextButton", p); b.Size = UDim2.new(1, 0, 0, 30); b.BackgroundColor3 = Color3.fromRGB(60, 60, 60); b.Text = t; b.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", b); b.MouseButton1Click:Connect(fn)
+end
+
+-- Populate Tabs
+_TOG(c1, "Super Fly", function(v) _f4 = v end)
+_BTN(c1, "Speed +10", function() _s1 = _s1 + 10 end)
+_BTN(c1, "Speed -10", function() _s1 = math.max(10, _s1 - 10) end)
+
+_TOG(c2, "Silent Aim", function(v) _f1 = v end)
+_TOG(c2, "IAM Bot", function(v) _f2 = v end)
+_TOG(c2, "ESP Everyone", function(v) _f3 = v if not v then for _, p in pairs(L_1:GetPlayers()) do if p.Character and p.Character:FindFirstChild(S_2) then p.Character[S_2]:Destroy() end end end end)
+_TOG(c2, "Show Radius", function(v) F_V.Visible = v end)
+_BTN(c2, "Radius +20", function() _r1 = _r1 + 20; F_V.Size = UDim2.new(0, _r1*2, 0, _r1*2) end)
+_BTN(c2, "Radius -20", function() _r1 = math.max(10, _r1 - 20); F_V.Size = UDim2.new(0, _r1*2, 0, _r1*2) end)
+
+_TOG(c3, "Stick To Target", function(v) _lk1 = v end)
+_TOG(c3, "Loop TP", function(v) _tp1 = v end)
+
+-- IAM List Logic
+local _tl = Instance.new("TextLabel", c4); _tl.Size = UDim2.new(1,0,0,25); _tl.Text = "Target: None"; _tl.TextColor3 = Color3.new(1,1,0); _tl.BackgroundTransparency = 1
+local _pl = Instance.new("Frame", c4); _pl.Size = UDim2.new(1,0,0,200); _pl.BackgroundTransparency = 1; Instance.new("UIListLayout", _pl).Padding = UDim.new(0, 5)
+local function _ref()
+    for _, v in pairs(_pl:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    for _, p in pairs(L_1:GetPlayers()) do if p ~= L_3 then
+        local b = Instance.new("TextButton", _pl); b.Size = UDim2.new(1,0,0,25); b.Text = p.Name; b.BackgroundColor3 = Color3.fromRGB(50,50,50); b.TextColor3 = Color3.new(1,1,1)
+        b.MouseButton1Click:Connect(function() _t1 = (_t1 == p and nil or p); _tl.Text = "Target: " .. (_t1 and _t1.Name or "None") end)
+    end end
+end
+_BTN(c4, "Refresh & Clear", function() _t1 = nil; _tl.Text = "Target: None"; _ref() end); _ref()
+
+-- Main Core logic Abyss-Styled
+local function _GET_T()
+    if not _f1 and not _f2 then return nil end
+    if _t1 and _t1.Character and _t1.Character:FindFirstChild("Head") then return _t1.Character.Head end
+    local _res, _m = nil, _r1
+    local _c = Vector2.new(L_4.ViewportSize.X/2, L_4.ViewportSize.Y/2)
+    for _, p in pairs(L_1:GetPlayers()) do
+        if p ~= L_3 and p.Character and p.Character:FindFirstChild("Head") then
+            local pos, os = L_4:WorldToViewportPoint(p.Character.Head.Position)
+            if os then
+                local d = (Vector2.new(pos.X, pos.Y) - _c).Magnitude
+                if d < _m then _m = d; _res = p.Character.Head end
+            end
+        end
+    end
+    return _res
+end
+
+L_2.RenderStepped:Connect(function()
+    local t = _GET_T()
+    if _f4 and L_3.Character and L_3.Character:FindFirstChild("HumanoidRootPart") then L_3.Character.HumanoidRootPart.Velocity = L_4.CFrame.LookVector * _s1 end
+    if _f2 and t then L_4.CFrame = CFrame.new(L_4.CFrame.Position, t.Position) end
+    if (_tp1 or _lk1) and _t1 and _t1.Character then L_3.Character.HumanoidRootPart.CFrame = _t1.Character.HumanoidRootPart.CFrame end
+    if _f3 then
+        for _, p in pairs(L_1:GetPlayers()) do
+            if p ~= L_3 and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local f = p.Character:FindFirstChild(S_2) or Instance.new("Folder", p.Character); f.Name = S_2
+                local b = f:FindFirstChild("B") or Instance.new("BoxHandleAdornment", f); b.Name = "B"
+                b.Adornee = p.Character; b.AlwaysOnTop = true; b.Size = Vector3.new(4, 5.5, 0); b.Color3 = Color3.new(1,0,0); b.Transparency = 0.6
+            end
+        end
+    end
+end)
+
+local _old; _old = hookmetamethod(game, "__index", function(s, i)
+    if _f1 and i == "Hit" and s:IsA("Mouse") then
+        local t = _GET_T()
+        if t then return t.CFrame end
+    end
+    return _old(s, i)
+end)
+
+local T_BTN = Instance.new("TextButton", G_1)
+T_BTN.Size = UDim2.new(0, 45, 0, 45); T_BTN.Position = UDim2.new(0, 10, 0.4, 0); T_BTN.Text = "T"
+T_BTN.BackgroundColor3 = Color3.fromRGB(0, 170, 255); Instance.new("UICorner", T_BTN).CornerRadius = UDim.new(1, 0)
+T_BTN.MouseButton1Click:Connect(function() M_1.Visible = not M_1.Visible end)
