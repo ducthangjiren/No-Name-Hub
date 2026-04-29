@@ -1,0 +1,170 @@
+--[[ 
+    TTT HUB V16.4.0 - THE DEFINITIVE EDITION
+    - FULL FEATURES: Fly, Silent, IAM, ESP, TP, Radius
+    - NO TEAM CHECK: Kill Everyone
+    - NO ENCRYPTION: Max Stability
+]]
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local cam = workspace.CurrentCamera
+
+--// 1. CLEAN UP
+if player.PlayerGui:FindFirstChild("TTT_DEFINITIVE") then 
+    player.PlayerGui.TTT_DEFINITIVE:Destroy() 
+end
+
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.Name = "TTT_DEFINITIVE"
+gui.ResetOnSpawn = false
+
+--// 2. MAIN UI (JIREN GRAY)
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 320, 0, 500); main.Position = UDim2.new(0.5, -160, 0.5, -250)
+main.BackgroundColor3 = Color3.fromRGB(35, 35, 35); main.Active = true; main.Draggable = true
+Instance.new("UICorner", main)
+
+local container = Instance.new("Frame", main)
+container.Size = UDim2.new(1, -20, 1, -60); container.Position = UDim2.new(0, 10, 0, 50); container.BackgroundTransparency = 1
+
+local function createTab(name, pos)
+    local b = Instance.new("TextButton", main)
+    b.Size = UDim2.new(0.25, 0, 0, 40); b.Position = UDim2.new(pos * 0.25, 0, 0, 0)
+    b.Text = name; b.TextColor3 = Color3.new(1,1,1); b.BackgroundTransparency = 1; b.Font = "GothamBold"; b.TextSize = 10
+    
+    local c = Instance.new("ScrollingFrame", container)
+    c.Size = UDim2.new(1, 0, 1, 0); c.Visible = false; c.BackgroundTransparency = 1; c.ScrollBarThickness = 0; c.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Instance.new("UIListLayout", c).Padding = UDim.new(0, 8)
+    
+    b.MouseButton1Click:Connect(function()
+        for _, v in pairs(container:GetChildren()) do if v:IsA("ScrollingFrame") then v.Visible = false end end
+        c.Visible = true
+    end)
+    return c
+end
+
+local cMove, cPvP, cTP, cIAM = createTab("MOVE", 0), createTab("PvP", 1), createTab("TP", 2), createTab("IAM", 3)
+cPvP.Visible = true
+
+--// 3. CONTROLS & RADIUS
+local silentOn, iamBotOn, espOn, flyOn = false, false, false, false
+local flySpeed, fovRadius = 60, 100
+local selectedPlayer, loopTp, stickOn = nil, false, false
+
+local fovCircle = Instance.new("Frame", gui)
+fovCircle.BackgroundTransparency = 1; fovCircle.AnchorPoint = Vector2.new(0.5, 0.5); fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2); fovCircle.Visible = false
+local fovStroke = Instance.new("UIStroke", fovCircle); fovStroke.Thickness = 1.5; fovStroke.Color = Color3.new(1,1,1)
+Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
+
+--// 4. UI BUILDER FUNCTIONS
+local function createToggle(parent, text, callback)
+    local btn = Instance.new("TextButton", parent); btn.Size = UDim2.new(1, 0, 0, 35); btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.Text = text .. ": OFF"; btn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", btn)
+    local on = false
+    btn.MouseButton1Click:Connect(function() on = not on; btn.Text = text .. (on and ": ON" or ": OFF")
+    btn.BackgroundColor3 = on and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(45, 45, 45); callback(on) end)
+end
+
+local function createBtn(parent, text, callback)
+    local btn = Instance.new("TextButton", parent); btn.Size = UDim2.new(1, 0, 0, 30); btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.Text = text; btn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", btn); btn.MouseButton1Click:Connect(callback)
+end
+
+-- [MOVE TAB]
+local flyInfo = Instance.new("TextLabel", cMove); flyInfo.Size = UDim2.new(1,0,0,20); flyInfo.Text = "Fly Speed: "..flySpeed; flyInfo.TextColor3 = Color3.new(0,1,0); flyInfo.BackgroundTransparency = 1
+createToggle(cMove, "Super Fly", function(v) flyOn = v end)
+createBtn(cMove, "Speed +10", function() flySpeed = flySpeed + 10; flyInfo.Text = "Fly Speed: "..flySpeed end)
+createBtn(cMove, "Speed -10", function() flySpeed = math.max(10, flySpeed - 10); flyInfo.Text = "Fly Speed: "..flySpeed end)
+
+-- [PvP TAB]
+local radInfo = Instance.new("TextLabel", cPvP); radInfo.Size = UDim2.new(1,0,0,20); radInfo.Text = "Radius: "..fovRadius; radInfo.TextColor3 = Color3.new(1,1,1); radInfo.BackgroundTransparency = 1
+createToggle(cPvP, "Silent Aim", function(v) silentOn = v end)
+createToggle(cPvP, "IAM Bot (Auto Lock)", function(v) iamBotOn = v end)
+createToggle(cPvP, "ESP (No Team Check)", function(v) 
+    espOn = v 
+    if not v then for _, p in pairs(Players:GetPlayers()) do if p.Character and p.Character:FindFirstChild("TTT_ESP") then p.Character.TTT_ESP:Destroy() end end end
+end)
+createToggle(cPvP, "Show Radius", function(v) fovCircle.Visible = v end)
+createBtn(cPvP, "Radius +20", function() fovRadius = fovRadius + 20; radInfo.Text = "Radius: "..fovRadius; fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2) end)
+createBtn(cPvP, "Radius -20", function() fovRadius = math.max(10, fovRadius - 20); radInfo.Text = "Radius: "..fovRadius; fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2) end)
+
+-- [TP & IAM TAB]
+createToggle(cTP, "Stick To Target", function(v) stickOn = v end)
+createToggle(cTP, "Loop Teleport", function(v) loopTp = v end)
+local targetLabel = Instance.new("TextLabel", cIAM); targetLabel.Size = UDim2.new(1,0,0,25); targetLabel.Text = "Target: None"; targetLabel.TextColor3 = Color3.new(1,1,0); targetLabel.BackgroundTransparency = 1
+createBtn(cIAM, "Clear Target", function() selectedPlayer = nil; targetLabel.Text = "Target: None" end)
+
+--// 5. CORE LOGIC (NO TEAM CHECK)
+local function getTarget()
+    -- Tắt là tắt hẳn, không quét
+    if not silentOn and not iamBotOn then return nil end
+    
+    if selectedPlayer and selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Head") then return selectedPlayer.Character.Head end
+    local target, min_dist = nil, fovRadius
+    local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+    
+    for _, p in pairs(Players:GetPlayers()) do
+        -- Bỏ Team Check hoàn toàn
+        if p ~= player and p.Character and p.Character:FindFirstChild("Head") then
+            local pos, os = cam:WorldToViewportPoint(p.Character.Head.Position)
+            if os then
+                local d = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                if d < min_dist then min_dist = d; target = p.Character.Head end
+            end
+        end
+    end
+    return target
+end
+
+RunService.RenderStep:Connect(function()
+    local t = getTarget()
+    
+    -- Fly Logic
+    if flyOn and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.Velocity = cam.CFrame.LookVector * flySpeed
+    end
+    
+    -- IAM Bot Logic
+    if iamBotOn and t then
+        cam.CFrame = CFrame.new(cam.CFrame.Position, t.Position)
+    end
+    
+    -- TP / Stick Logic
+    if (loopTp or stickOn) and selectedPlayer and selectedPlayer.Character then
+        player.Character.HumanoidRootPart.CFrame = selectedPlayer.Character.HumanoidRootPart.CFrame
+    end
+    
+    -- ESP Logic (Everyone)
+    if espOn then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local char = p.Character
+                local folder = char:FindFirstChild("TTT_ESP") or Instance.new("Folder", char); folder.Name = "TTT_ESP"
+                local box = folder:FindFirstChild("Box") or Instance.new("BoxHandleAdornment", folder)
+                box.Name = "Box"; box.Adornee = char.HumanoidRootPart; box.AlwaysOnTop = true; box.Size = Vector3.new(4, 5.5, 0.1); box.Color3 = Color3.new(1,0,0); box.Transparency = 0.6
+            end
+        end
+    end
+end)
+
+-- Silent Aim Hook
+local old; old = hookmetamethod(game, "__index", function(s, i)
+    if silentOn and i == "Hit" and s:IsA("Mouse") then
+        local t = getTarget()
+        if t then return t.CFrame end
+    end
+    return old(s, i)
+end)
+
+-- Toggle Button T
+local mBtn = Instance.new("TextButton", gui)
+mBtn.Size = UDim2.new(0, 45, 0, 45); mBtn.Position = UDim2.new(0, 10, 0.4, 0); mBtn.Text = "T"
+mBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255); Instance.new("UICorner", mBtn).CornerRadius = UDim.new(1, 0)
+mBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible end)
+
+print("TTT HUB v16.4.0 Loaded - All requests confirmed.")
