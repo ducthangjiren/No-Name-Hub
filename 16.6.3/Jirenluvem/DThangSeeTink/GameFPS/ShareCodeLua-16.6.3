@@ -1,0 +1,237 @@
+--[[ 
+    TTT HUB V16.6.3 - INTEGRATED HEAD MAGNET & UI FIX
+    - Fix: Hiện nút IAM Bot & Head Magnet trong Tab PvP.
+    - Logic: IAM Bot khóa camera vào ĐẦU thay vì THÂN.
+    - Ghép: Head Magnet V4 ghim ĐẦU mục tiêu cách camera 25 studs vào chung Tab PvP, dùng chung Radius.
+    - Fix: Sửa lỗi danh sách người chơi đè lên nút Refresh ở Tab TP (AutomaticSize).
+]]
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local UIS = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local cam = workspace.CurrentCamera
+
+--// 1. DỌN DẸP
+if player.PlayerGui:FindFirstChild("TTTHub_Final_v3") then player.PlayerGui.TTTHub_Final_v3:Destroy() end
+local gui = Instance.new("ScreenGui", player.PlayerGui); gui.Name = "TTTHub_Final_v3"; gui.ResetOnSpawn = false
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 320, 0, 530); main.Position = UDim2.new(0.5, -160, 0.5, -265)
+main.BackgroundColor3 = Color3.fromRGB(15, 15, 15); main.Active = true; main.Draggable = true
+Instance.new("UICorner", main)
+
+--// FPS RAINBOW
+local fpsLabel = Instance.new("TextLabel", main)
+fpsLabel.Size = UDim2.new(1, 0, 0, 30); fpsLabel.Position = UDim2.new(0, 0, 1, -30); fpsLabel.BackgroundTransparency = 1; fpsLabel.Text = "FPS: ..."
+fpsLabel.Font = "GothamBold"; fpsLabel.TextSize = 14
+local lastT, count = tick(), 0
+RunService.RenderStepped:Connect(function()
+    count = count + 1
+    if tick() - lastT >= 1 then fpsLabel.Text = "FPS: " .. count; count = 0; lastT = tick() end
+    fpsLabel.TextColor3 = Color3.fromHSV(tick() % 5 / 5, 0.8, 1)
+end)
+
+--// FOV CIRCLE
+local fovCircle = Instance.new("Frame", gui)
+fovCircle.BackgroundTransparency = 1; fovCircle.AnchorPoint = Vector2.new(0.5, 0.5); fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0); fovCircle.Visible = false
+local stroke = Instance.new("UIStroke", fovCircle); stroke.Thickness = 1; stroke.Color = Color3.new(1, 0, 0) -- Đổi sang đỏ theo Magnet V4
+Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
+
+--// 2. VARIABLES
+local silentOn, iamBotOn, espOn, flyOn, spinOn, magnetOn = false, false, false, false, false, false
+local flySpeed, fovRadius, spinSpeed, lockDist = 50, 100, 50, 25
+local selectedPlayer, loopTp = nil, false
+
+--// 3. TABS SETUP
+local tabBar = Instance.new("Frame", main); tabBar.Size = UDim2.new(1, 0, 0, 40); tabBar.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+local container = Instance.new("Frame", main); container.Size = UDim2.new(1, -20, 1, -100); container.Position = UDim2.new(0, 10, 0, 50); container.BackgroundTransparency = 1
+
+local function createTab(name, pos, width)
+    local b = Instance.new("TextButton", tabBar)
+    b.Size = UDim2.new(width, 0, 1, 0); b.Position = UDim2.new(pos, 0, 0, 0); b.Text = name; b.TextColor3 = Color3.new(1,1,1); b.BackgroundTransparency = 1; b.Font = "GothamBold"; b.TextSize = 10
+    local c = Instance.new("ScrollingFrame", container); c.Size = UDim2.new(1, 0, 1, 0); c.Visible = false; c.BackgroundTransparency = 1; c.ScrollBarThickness = 0; c.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Instance.new("UIListLayout", c).Padding = UDim.new(0, 8)
+    b.MouseButton1Click:Connect(function() for _, v in pairs(container:GetChildren()) do if v:IsA("ScrollingFrame") then v.Visible = false end end c.Visible = true end)
+    return c
+end
+
+local cMove = createTab("MOVE", 0, 0.25); cMove.Visible = true
+local cPvP = createTab("PvP", 0.25, 0.25)
+local cTP = createTab("TP", 0.5, 0.25)
+local cMisc = createTab("MISC", 0.75, 0.25)
+
+--// 4. UI BUILDER
+local function createToggle(p, t, fn)
+    local b = Instance.new("TextButton", p); b.Size = UDim2.new(1, 0, 0, 35); b.BackgroundColor3 = Color3.fromRGB(30, 30, 30); b.Text = t .. ": OFF"; b.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", b)
+    local on = false; b.MouseButton1Click:Connect(function() on = not on; b.Text = t .. (on and ": ON" or ": OFF"); b.BackgroundColor3 = on and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(30, 30, 30); fn(on) end)
+end
+
+local function createBtn(p, t, fn)
+    local b = Instance.new("TextButton", p); b.Size = UDim2.new(1, 0, 0, 30); b.BackgroundColor3 = Color3.fromRGB(45, 45, 45); b.Text = t; b.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", b); b.MouseButton1Click:Connect(fn)
+end
+
+-- [MOVE]
+local flL = Instance.new("TextLabel", cMove); flL.Size = UDim2.new(1,0,0,20); flL.Text = "Fly Speed: "..flySpeed; flL.TextColor3 = Color3.new(0,1,0); flL.BackgroundTransparency = 1
+createToggle(cMove, "Super Fly", function(v) flyOn = v end)
+createBtn(cMove, "Fly Speed +10", function() flySpeed = flySpeed + 10; flL.Text = "Fly Speed: "..flySpeed end)
+createBtn(cMove, "Fly Speed -10", function() flySpeed = math.max(10, flySpeed - 10); flL.Text = "Fly Speed: "..flySpeed end)
+
+local spL = Instance.new("TextLabel", cMove); spL.Size = UDim2.new(1,0,0,20); spL.Text = "Spin Speed: "..spinSpeed; spL.TextColor3 = Color3.new(1,1,0); spL.BackgroundTransparency = 1
+createToggle(cMove, "Spin Bot (Fixed)", function(v) spinOn = v end)
+createBtn(cMove, "Spin Speed +10", function() spinSpeed = spinSpeed + 10; spL.Text = "Spin Speed: "..spinSpeed end)
+createBtn(cMove, "Spin Speed -10", function() spinSpeed = math.max(1, spinSpeed - 10); spL.Text = "Spin Speed: "..spinSpeed end)
+
+-- [PvP]
+local rdL = Instance.new("TextLabel", cPvP); rdL.Size = UDim2.new(1,0,0,20); rdL.Text = "Radius: "..fovRadius; rdL.TextColor3 = Color3.new(1,1,1); rdL.BackgroundTransparency = 1
+createToggle(cPvP, "IAM Bot (Lock Head)", function(v) iamBotOn = v end)
+createToggle(cPvP, "Silent Aim", function(v) silentOn = v end)
+createToggle(cPvP, "HEAD MAGNET", function(v) magnetOn = v end) -- Thêm Magnet vào đây
+createToggle(cPvP, "Show FOV Circle", function(v) fovCircle.Visible = v end)
+createBtn(cPvP, "Radius +20", function() fovRadius = fovRadius + 20; rdL.Text = "Radius: "..fovRadius; fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2) end)
+createBtn(cPvP, "Radius -20", function() fovRadius = math.max(10, fovRadius - 20); rdL.Text = "Radius: "..fovRadius; fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2) end)
+createToggle(cPvP, "ESP Name", function(v) espOn = v end)
+
+-- [TP] - Đã sửa lỗi chồng đè nút bằng AutomaticSize
+createToggle(cTP, "Loop TP to Target", function(v) loopTp = v end)
+local list = Instance.new("Frame", cTP); list.Size = UDim2.new(1, 0, 0, 0); list.AutomaticSize = Enum.AutomaticSize.Y; list.BackgroundTransparency = 1; Instance.new("UIListLayout", list).Padding = UDim.new(0, 5)
+local function refresh()
+    for _, v in pairs(list:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            local b = Instance.new("TextButton", list); b.Size = UDim2.new(1,0,0,25); b.Text = p.Name; b.BackgroundColor3 = Color3.fromRGB(40,40,40); b.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", b)
+            b.MouseButton1Click:Connect(function() selectedPlayer = p end)
+        end
+    end
+end
+createBtn(cTP, "Refresh List", refresh); refresh()
+
+-- [MISC]
+createBtn(cMisc, "SERVER HOP", function()
+    local s = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Desc&limit=100")).data
+    for _, v in pairs(s) do if v.playing < v.maxPlayers and v.id ~= game.JobId then TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, player) break end end
+end)
+createBtn(cMisc, "REJOIN", function() TeleportService:Teleport(game.PlaceId, player) end)
+
+--// 5. LOGIC CORE
+local function getT()
+    if not silentOn and not iamBotOn then return nil end
+    if selectedPlayer and selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Head") then return selectedPlayer.Character.Head end
+    local target, minD = nil, fovRadius
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("Head") then
+            local pos, os = cam:WorldToViewportPoint(p.Character.Head.Position)
+            if os then
+                local d = (Vector2.new(pos.X, pos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
+                if d < minD then minD = d; target = p.Character.Head end
+            end
+        end
+    end
+    return target
+end
+
+-- Logic quét mục tiêu cho Magnet V4 (Hỗ trợ cả NPC/Workspace)
+local function GetTheTarget()
+    local targetModel = nil
+    local shortestDist = fovRadius
+    local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+    
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v:FindFirstChild("Humanoid") and v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Head") and v.Humanoid.Health > 0 then
+            if v ~= player.Character then
+                local head = v.Head
+                local pos, onScreen = cam:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        targetModel = v
+                    end
+                end
+            end
+        end
+    end
+    return targetModel
+end
+
+local angle = 0
+RunService.PreRender:Connect(function()
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not root or not hum then return end
+
+    -- ABSOLUTE SPIN (FORCE JOINT)
+    if spinOn then
+        hum.AutoRotate = false
+        angle = (angle + spinSpeed) % 360
+        root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.rad(angle), 0)
+        local rj = root:FindFirstChild("RootJoint") or (char:FindFirstChild("LowerTorso") and char.LowerTorso:FindFirstChild("Root"))
+        if rj then rj.C0 = CFrame.new(0,0,0) * CFrame.Angles(0, math.rad(angle), 0) end
+    else
+        hum.AutoRotate = true
+    end
+
+    if flyOn then root.Velocity = cam.CFrame.LookVector * (flySpeed * 2) end
+    
+    -- IAM BOT LOCK HEAD
+    local target = getT()
+    if iamBotOn and target then cam.CFrame = CFrame.new(cam.CFrame.Position, target.Position) end
+    if loopTp and selectedPlayer and selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then 
+        root.CFrame = selectedPlayer.Character.HumanoidRootPart.CFrame 
+    end
+
+    -- SINGLE TARGET MAGNET (HEADSHOT V4) LOGIC
+    if magnetOn then
+        local mTarget = GetTheTarget()
+        if mTarget and mTarget:FindFirstChild("Head") and mTarget:FindFirstChild("HumanoidRootPart") then
+            local head = mTarget.Head
+            local tRoot = mTarget.HumanoidRootPart
+            local lockPoint = cam.CFrame.Position + (cam.CFrame.LookVector * lockDist)
+            
+            head.CFrame = CFrame.new(lockPoint)
+            tRoot.Velocity = Vector3.new(0,0,0)
+            tRoot.RotVelocity = Vector3.new(0,0,0)
+        end
+    end
+
+    -- ESP NAME
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("Head") then
+            local head = p.Character.Head
+            local tag = head:FindFirstChild("TTT_ESP_TAG")
+            if espOn then
+                if not tag then
+                    tag = Instance.new("BillboardGui", head); tag.Name = "TTT_ESP_TAG"; tag.Size = UDim2.new(0, 100, 0, 20); tag.AlwaysOnTop = true; tag.ExtentsOffset = Vector3.new(0, 2, 0)
+                    local l = Instance.new("TextLabel", tag); l.Size = UDim2.new(1, 0, 1, 0); l.BackgroundTransparency = 1; l.TextColor3 = Color3.new(1, 1, 1); l.Font = "GothamBold"; l.TextSize = 12; l.Text = p.Name
+                end
+            elseif tag then tag:Destroy() end
+        end
+    end
+end)
+
+-- SILENT AIM
+local old; old = hookmetamethod(game, "__index", function(s, i)
+    if silentOn and i == "Hit" and s:IsA("Mouse") then
+        local t = getT()
+        if t then return t.CFrame end
+    end
+    return old(s, i)
+end)
+
+-- MENU TOGGLE
+local mBtn = Instance.new("TextButton", gui); mBtn.Size = UDim2.new(0, 45, 0, 45); mBtn.Position = UDim2.new(0, 10, 0.4, 0); mBtn.Text = "T"; mBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255); Instance.new("UICorner", mBtn).CornerRadius = UDim.new(1, 0)
+mBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible end)
+fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2)
+
+-- Phím L ẩn/hiện Giao diện & Vòng FOV theo yêu cầu bản Magnet V4
+UIS.InputBegan:Connect(function(i, g)
+    if not g and i.KeyCode == Enum.KeyCode.L then
+        main.Visible = not main.Visible
+        fovCircle.Visible = main.Visible
+    end
+end)
