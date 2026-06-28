@@ -1,0 +1,64 @@
+local Player = game.Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- 1. Tạo GUI chính
+local ScreenGui = Instance.new("ScreenGui", PlayerGui)
+ScreenGui.Name = "TTT_Private_Menu"
+ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 300, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Active = true
+MainFrame.Draggable = true -- Cho phép kéo menu
+
+-- 2. Hệ thống Tabs
+local TabContainer = Instance.new("ScrollingFrame", MainFrame)
+TabContainer.Size = UDim2.new(1, 0, 1, -40)
+TabContainer.Position = UDim2.new(0, 0, 0, 40)
+TabContainer.CanvasSize = UDim2.new(0, 0, 2, 0)
+TabContainer.ScrollBarThickness = 5
+
+-- 3. Cấu hình
+local Config = {
+    Aimbot = {Enabled = false},
+    ESP = {Enabled = false},
+    Speed = 1
+}
+
+-- 4. Hàm hỗ trợ tạo UI
+local function AddToggle(name, parent, configTable, key)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(0.9, 0, 0, 40)
+    btn.Position = UDim2.new(0.05, 0, 0, (#parent:GetChildren() * 45))
+    btn.Text = name .. ": OFF"
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.TextColor3 = Color3.new(1,1,1)
+    
+    btn.MouseButton1Click:Connect(function()
+        configTable[key] = not configTable[key]
+        btn.Text = name .. (configTable[key] and ": ON" or ": OFF")
+        btn.BackgroundColor3 = configTable[key] and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(60, 60, 60)
+    end)
+end
+
+-- 5. Xây dựng giao diện
+AddToggle("IAM BOT", TabContainer, Config.Aimbot, "Enabled")
+AddToggle("ESP MASTER", TabContainer, Config.ESP, "Enabled")
+
+local SpeedInput = Instance.new("TextBox", TabContainer)
+SpeedInput.Size = UDim2.new(0.9, 0, 0, 40)
+SpeedInput.Position = UDim2.new(0.05, 0, 0, (#TabContainer:GetChildren() * 45))
+SpeedInput.PlaceholderText = "Tốc độ (1-200)"
+SpeedInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local val = tonumber(SpeedInput.Text)
+        if val then
+            Config.Speed = math.clamp(val, 1, 200)
+            if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+                Player.Character.Humanoid.WalkSpeed = 16 * Config.Speed
+            end
+        end
+    end
+end)
